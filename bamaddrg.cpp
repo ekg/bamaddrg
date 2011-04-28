@@ -54,9 +54,9 @@ int main(int argc, char** argv) {
         static struct option long_options[] =
         {
             {"help", no_argument, 0, 'h'},
-            {"bam",  no_argument, 0, 'b'},
-            {"read-group", no_argument, 0, 'r'},
-            {"sample", no_argument, 0, 's'},
+            {"bam",  required_argument, 0, 'b'},
+            {"read-group", required_argument, 0, 'r'},
+            {"sample", required_argument, 0, 's'},
             {0, 0, 0, 0}
         };
         /* getopt_long stores the option index here. */
