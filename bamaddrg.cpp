@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <getopt.h>
+#include <stdlib.h>
 #include <iostream>
 #include "api/BamMultiReader.h"
 #include "api/BamWriter.h"
@@ -19,6 +20,7 @@ void printUsage(int argc, char** argv) {
          << "    -b, --bam FILE     use this BAM as input" << endl
          << "    -s, --sample NAME  optionally apply this sample name to the preceeding BAM file" << endl
          << "    -r, --read-group GROUP  optionally apply this read group to the preceeding BAM file" << endl
+         << "    -R, --region REGION  limit alignments to those in this region (chr:start..end)" << endl
          << endl
          << "Merges the alignments in the supplied BAM files, using the supplied sample names" << endl
          << "and read groups to specifically add read group (RG) tags to each alignment.  The" << endl
@@ -36,6 +38,69 @@ void printUsage(int argc, char** argv) {
 
 }
 
+void setRegion(BamMultiReader& reader, string& regionStr) {
+
+    // parse the region string
+    if (!regionStr.empty()) {
+
+        map<string, int> refLength;
+        map<string, int> refID;
+
+        int id = 0;
+        RefVector references = reader.GetReferenceData();
+        for (RefVector::iterator r = references.begin(); r != references.end(); ++r) {
+            refLength[r->RefName] = r->RefLength;
+            refID[r->RefName] = id++;
+        }
+
+        // parse the region string
+        string startSeq;
+        int startPos;
+        int stopPos;
+
+        size_t foundFirstColon = regionStr.find(":");
+
+        // we only have a single string, use the whole sequence as the target
+        if (foundFirstColon == string::npos) {
+            startSeq = regionStr;
+            startPos = 0;
+            stopPos = -1;
+        } else {
+            startSeq = regionStr.substr(0, foundFirstColon);
+            size_t foundRangeDots = regionStr.find("..", foundFirstColon);
+            if (foundRangeDots == string::npos) {
+                startPos = atoi(regionStr.substr(foundFirstColon + 1).c_str());
+                // differ from bamtools in this regard, in that we process only
+                // the specified position if a range isn't given
+                stopPos = startPos + 1;
+            } else {
+                startPos = atoi(regionStr.substr(foundFirstColon + 1, foundRangeDots - foundRangeDots - 1).c_str());
+                // if we have range dots specified, but no second number, read to the end of sequence
+                if (foundRangeDots + 2 != regionStr.size()) {
+                    stopPos = atoi(regionStr.substr(foundRangeDots + 2).c_str()); // end-exclusive, bed-format
+                } else {
+                    stopPos = refLength[startSeq];
+                }
+            }
+        }
+
+        if (stopPos == -1) {
+            stopPos = refLength[startSeq];
+        }
+
+        int startSeqRefID = refID[startSeq];
+
+        if (!reader.LocateIndexes()) {
+            cerr << "region specified, but could not open load BAM index" << endl;
+            exit(1);
+        } else {
+            reader.SetRegion(startSeqRefID, startPos, startSeqRefID, stopPos);
+        }
+
+    }
+
+}
+
 int main(int argc, char** argv) {
 
     vector<string> inputFilenames;
@@ -45,6 +110,7 @@ int main(int argc, char** argv) {
     string currFileName;
     string currReadGroup;
     string currSampleName;
+    string regionStr;
 
     // parse command-line options
     int c;
@@ -57,12 +123,13 @@ int main(int argc, char** argv) {
             {"bam",  required_argument, 0, 'b'},
             {"read-group", required_argument, 0, 'r'},
             {"sample", required_argument, 0, 's'},
+            {"region", required_argument, 0, 'R'},
             {0, 0, 0, 0}
         };
         /* getopt_long stores the option index here. */
         int option_index = 0;
 
-        c = getopt_long (argc, argv, "hb:s:r:",
+        c = getopt_long (argc, argv, "hb:s:r:R:",
                          long_options, &option_index);
 
         if (c == -1)
@@ -104,6 +171,10 @@ int main(int argc, char** argv) {
                 currReadGroup = optarg;
                 break;
 
+            case 'R':
+                regionStr = optarg;
+                break;
+
             default:
                 return 1;
                 break;
@@ -137,7 +208,7 @@ int main(int argc, char** argv) {
     vector<string>::iterator r = readGroups.begin();
     vector<string>::iterator s = sampleNames.begin();
     for (; b != inputFilenames.end(); ++b, ++r, ++s) {
-        cerr << *b << " " << *s << " " << *r << endl;
+        //cerr << *b << " " << *s << " " << *r << endl;
         filenameToReadGroup[*b] = *r; 
         readGroupToSampleName[*r] = *s;
         SamReadGroup samRG(*r);
@@ -150,6 +221,8 @@ int main(int argc, char** argv) {
         cerr << "could not open input BAM files" << endl;
         return 1;
     }
+
+    setRegion(reader, regionStr);
 
     const RefVector references = reader.GetReferenceData();
 
