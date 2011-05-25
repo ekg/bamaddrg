@@ -18,7 +18,9 @@ void printUsage(int argc, char** argv) {
          << "options:" << endl
          << "    -h, --help         this dialog" << endl
          << "    -b, --bam FILE     use this BAM as input" << endl
+         << "    -u, --uncompressed write uncompressed BAM output" << endl
          << "    -s, --sample NAME  optionally apply this sample name to the preceeding BAM file" << endl
+         << "    -d, --delete NAME  removes this sample name and all associated RGs from the header" << endl
          << "    -r, --read-group GROUP  optionally apply this read group to the preceeding BAM file" << endl
          << "    -R, --region REGION  limit alignments to those in this region (chr:start..end)" << endl
          << endl
@@ -106,11 +108,15 @@ int main(int argc, char** argv) {
     vector<string> inputFilenames;
     vector<string> sampleNames;
     vector<string> readGroups;
+
+    map<string, int> samplesToDelete;
     
     string currFileName;
     string currReadGroup;
     string currSampleName;
     string regionStr;
+
+    bool writeUncompressed = false;
 
     // parse command-line options
     int c;
@@ -121,7 +127,9 @@ int main(int argc, char** argv) {
         {
             {"help", no_argument, 0, 'h'},
             {"bam",  required_argument, 0, 'b'},
+            {"uncompressed",  no_argument, 0, 'u'},
             {"read-group", required_argument, 0, 'r'},
+            {"delete", required_argument, 0, 'd'},
             {"sample", required_argument, 0, 's'},
             {"region", required_argument, 0, 'R'},
             {0, 0, 0, 0}
@@ -129,7 +137,7 @@ int main(int argc, char** argv) {
         /* getopt_long stores the option index here. */
         int option_index = 0;
 
-        c = getopt_long (argc, argv, "hb:s:r:R:",
+        c = getopt_long (argc, argv, "hb:d:s:r:R:",
                          long_options, &option_index);
 
         if (c == -1)
@@ -145,6 +153,14 @@ int main(int argc, char** argv) {
             case 'h':
                 printUsage(argc, argv);
                 return 0;
+                break;
+
+            case 'u':
+                writeUncompressed = true;
+                break;
+
+            case 'd':
+                samplesToDelete[optarg];
                 break;
 
             case 'b':
@@ -203,6 +219,7 @@ int main(int argc, char** argv) {
     map<string, string> filenameToReadGroup;
     map<string, string> readGroupToSampleName;
     vector<SamReadGroup> newReadGroups;
+    vector<SamReadGroup> readGroupsToDelete;
 
     vector<string>::iterator b = inputFilenames.begin();
     vector<string>::iterator r = readGroups.begin();
@@ -232,7 +249,23 @@ int main(int argc, char** argv) {
         header.ReadGroups.Add(*r);
     }
 
+    vector<SamReadGroup> rgsToDelete;
+    for (SamReadGroupIterator g = header.ReadGroups.Begin(); g != header.ReadGroups.End(); ++g) {
+        if (samplesToDelete.find(g->Sample) != samplesToDelete.end()) {
+            rgsToDelete.push_back(*g);
+        }
+    }
+
+    for (vector<SamReadGroup>::iterator r = rgsToDelete.begin(); r != rgsToDelete.end(); ++r) {
+        header.ReadGroups.Remove(*r);
+    }
+
     BamWriter writer;
+
+    if (writeUncompressed) {
+        writer.SetCompressionMode(BamWriter::Uncompressed);
+    }
+
     if (!writer.Open("stdout", header.ToString(), references)) {
         cerr << "could not open BAM output stream" << endl;
         return 1;
