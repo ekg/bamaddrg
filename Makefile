@@ -12,7 +12,7 @@ libbamtools.a:
 
 # statically compiles bamaddrg against bamtools static lib
 bamaddrg: bamaddrg.cpp libbamtools.a
-	$(CXX) $(CXXFLAGS) bamaddrg.cpp -o bamaddrg -static -lbamtools -lz
+	$(CXX) $(CXXFLAGS) bamaddrg.cpp -o bamaddrg -lbamtools -lz
 
 clean:
 	rm -f bamaddrg libbamtools.a *.o
