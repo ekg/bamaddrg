@@ -21,6 +21,7 @@ void printUsage(int argc, char** argv) {
          << "    -u, --uncompressed write uncompressed BAM output" << endl
          << "    -s, --sample NAME  optionally apply this sample name to the preceeding BAM file" << endl
          << "    -d, --delete NAME  removes this sample name and all associated RGs from the header" << endl
+	 << "    -c, --clear        removes all RGs which were in the old file" << endl
          << "    -r, --read-group GROUP  optionally apply this read group to the preceeding BAM file" << endl
          << "    -R, --region REGION  limit alignments to those in this region (chr:start..end)" << endl
          << endl
@@ -110,6 +111,7 @@ int main(int argc, char** argv) {
     vector<string> readGroups;
 
     map<string, int> samplesToDelete;
+    bool deleteOldRGs = false;
     
     string currFileName;
     string currReadGroup;
@@ -130,6 +132,7 @@ int main(int argc, char** argv) {
             {"uncompressed",  no_argument, 0, 'u'},
             {"read-group", required_argument, 0, 'r'},
             {"delete", required_argument, 0, 'd'},
+	    {"clear", no_argument, 0, 'c'},
             {"sample", required_argument, 0, 's'},
             {"region", required_argument, 0, 'R'},
             {0, 0, 0, 0}
@@ -137,7 +140,7 @@ int main(int argc, char** argv) {
         /* getopt_long stores the option index here. */
         int option_index = 0;
 
-        c = getopt_long (argc, argv, "hb:d:s:r:R:",
+        c = getopt_long (argc, argv, "hcb:d:s:r:R:",
                          long_options, &option_index);
 
         if (c == -1)
@@ -154,6 +157,10 @@ int main(int argc, char** argv) {
                 printUsage(argc, argv);
                 return 0;
                 break;
+
+	    case 'c':
+		deleteOldRGs = true;
+		break;
 
             case 'u':
                 writeUncompressed = true;
@@ -245,15 +252,16 @@ int main(int argc, char** argv) {
 
     // add read groups
     SamHeader header = reader.GetHeader();
-    for (vector<SamReadGroup>::iterator r = newReadGroups.begin(); r != newReadGroups.end(); ++r) {
-        header.ReadGroups.Add(*r);
-    }
 
     vector<SamReadGroup> rgsToDelete;
     for (SamReadGroupIterator g = header.ReadGroups.Begin(); g != header.ReadGroups.End(); ++g) {
-        if (samplesToDelete.find(g->Sample) != samplesToDelete.end()) {
+        if (samplesToDelete.find(g->Sample) != samplesToDelete.end() || deleteOldRGs) {
             rgsToDelete.push_back(*g);
         }
+    }
+
+    for (vector<SamReadGroup>::iterator r = newReadGroups.begin(); r != newReadGroups.end(); ++r) {
+        header.ReadGroups.Add(*r);
     }
 
     for (vector<SamReadGroup>::iterator r = rgsToDelete.begin(); r != rgsToDelete.end(); ++r) {
