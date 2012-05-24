@@ -93,11 +93,10 @@ void setRegion(BamMultiReader& reader, string& regionStr) {
 
         int startSeqRefID = refID[startSeq];
 
-        if (!reader.LocateIndexes()) {
-            cerr << "region specified, but could not open load BAM index" << endl;
-            exit(1);
-        } else {
-            reader.SetRegion(startSeqRefID, startPos, startSeqRefID, stopPos);
+	reader.LocateIndexes();
+	if (!reader.SetRegion(startSeqRefID, startPos, startSeqRefID, stopPos)) {
+	    cerr << "Could not set region" << endl;
+	    exit(1);
         }
 
     }
