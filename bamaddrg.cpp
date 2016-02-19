@@ -61,7 +61,7 @@ void setRegion(BamMultiReader& reader, string& regionStr) {
         int startPos;
         int stopPos;
 
-        size_t foundFirstColon = regionStr.find(":");
+        size_t foundFirstColon = regionStr.rfind(":");
 
         // we only have a single string, use the whole sequence as the target
         if (foundFirstColon == string::npos) {
