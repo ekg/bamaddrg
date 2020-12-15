@@ -6,6 +6,12 @@ the source file from which the aligment originated from.  This allows the
 for input into downstream processing systems such as freebayes (a population
 variant detector).
 
+Installation:
+1. Use git clone --recursive to download all necessary components.
+2. Then type 'make' inside the cloned directory (where the Makefile is located). 
+The binary will be compiled inside this folder, you can than symlink it or add 
+to your $PATH.
+
 Usage:
 
 To tag multiple files simultaneously, use as such:
